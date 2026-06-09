@@ -1,0 +1,490 @@
+```html
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ฟาร์มแครอท: ตรีโกณมิติ ม.5</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Mali', cursive; background-color: #87CEEB; }
+        canvas { display: block; width: 100vw; height: 100vh; touch-action: none; user-select: none; -webkit-user-select: none; }
+        
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.6); z-index: 1000; }
+        .panel { background: white; border-radius: 24px; padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; max-width: 90%; width: 500px; border: 4px solid #F97316; }
+        
+        .avatar-btn { font-size: 3rem; cursor: pointer; transition: transform 0.2s; filter: grayscale(100%); opacity: 0.5; background: none; border: none; outline: none; -webkit-tap-highlight-color: transparent; }
+        .avatar-btn.selected { filter: grayscale(0%); opacity: 1; transform: scale(1.2); }
+        
+        .btn-squash { transition: transform 0.1s ease-in-out; cursor: pointer; outline: none; border: none;}
+        .btn-squash:active { transform: scale(0.95); }
+        
+        .quiz-choice { width: 100%; padding: 0.8rem; margin-bottom: 0.5rem; border-radius: 12px; border: 2px solid #FED7AA; background: #FFF7ED; font-size: 1.2rem; cursor: pointer; transition: all 0.2s; font-family: 'Mali', cursive; font-weight: 600; }
+        .quiz-choice:hover:not(:disabled) { background: #FFEDD5; transform: translateY(-2px); }
+        .quiz-choice.correct { background: #86EFAC; border-color: #059669; color: #064E3B; }
+        .quiz-choice.wrong { background: #FCA5A5; border-color: #DC2626; color: #7F1D1D; animation: shake 0.4s; }
+
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } }
+
+        .touch-controls { position: absolute; bottom: 20px; pointer-events: auto; display: none; gap: 15px; z-index: 900; touch-action: none; user-select: none;}
+        .touch-btn { width: 75px; height: 75px; background: rgba(255, 255, 255, 0.85); border: 3px solid rgba(0,0,0,0.1); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 2.5rem; user-select: none; }
+        .touch-btn:active { background: white; transform: scale(0.9); }
+
+        #progress-bar-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 600px; height: 15px; background: rgba(255,255,255,0.6); border-radius: 10px; border: 2px solid white; z-index: 800;}
+        #progress-indicator { position: absolute; top: -12px; font-size: 1.8rem; transition: left 0.1s linear; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="game-ui" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 500;">
+        <div class="absolute top-4 left-4 bg-white/95 px-4 py-2 rounded-2xl border-2 border-orange-300 shadow-md flex flex-col pointer-events-auto">
+            <div id="hud-name" class="font-bold text-orange-600 text-lg">กระต่ายน้อย</div>
+            <div class="flex items-center gap-2">
+                <div id="hud-hp" class="text-xl">❤️❤️❤️</div>
+                <div id="hud-score" class="font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-lg">⭐ 0/10</div>
+            </div>
+        </div>
+        <div id="progress-bar-container">
+            <div id="progress-indicator">🐰</div>
+            <div class="absolute right-[-15px] top-[-8px] text-2xl">🏡</div>
+        </div>
+    </div>
+
+    <div id="touch-left-panel" class="touch-controls" style="left: 20px;">
+        <div class="touch-btn" id="btn-left">◀️</div>
+        <div class="touch-btn" id="btn-right">▶️</div>
+    </div>
+    <div id="touch-right-panel" class="touch-controls" style="right: 20px;">
+        <div class="touch-btn" id="btn-jump">🔼</div>
+    </div>
+
+    <div id="start-screen" class="overlay">
+        <div class="panel">
+            <h1 class="text-4xl font-bold text-orange-500 mb-2">ฟาร์มแครอทหรรษา</h1>
+            <p class="text-gray-600 mb-6 font-bold text-lg">บทเรียน: ตรีโกณมิติ ม.5</p>
+            
+            <input type="text" id="player-name" value="กระต่ายน้อย" class="w-full text-center border-2 border-orange-400 p-3 rounded-xl text-xl mb-4 focus:outline-none focus:border-orange-600 font-mali">
+            
+            <div class="flex justify-center gap-6 mb-6">
+                <button type="button" class="avatar-btn selected" onclick="selectAvatar('🐰', this)">🐰</button>
+                <button type="button" class="avatar-btn" onclick="selectAvatar('🐹', this)">🐹</button>
+                <button type="button" class="avatar-btn" onclick="selectAvatar('🐷', this)">🐷</button>
+            </div>
+            
+            <button type="button" onclick="startGame()" class="btn-squash w-full bg-gradient-to-r from-orange-400 to-red-500 text-white font-bold text-2xl py-3 rounded-xl shadow-lg border-b-4 border-red-700">
+                เริ่มเก็บแครอท! 🥕
+            </button>
+        </div>
+    </div>
+
+    <div id="quiz-screen" class="overlay" style="display: none;">
+        <div class="panel">
+            <div class="text-7xl mb-4" style="text-shadow: 0 0 30px #FFA500, 0 0 50px white;">🥕</div>
+            <h2 id="question-text" class="text-2xl font-bold text-gray-800 mb-6 leading-relaxed">คำถาม?</h2>
+            <div id="choices-container" class="flex flex-col gap-3"></div>
+            <div id="explanation-banner" class="hidden mt-4 p-3 rounded-lg text-white font-bold text-lg"></div>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="overlay" style="display: none;">
+        <div class="panel">
+            <h1 id="end-title" class="text-4xl font-bold mb-4">เข้าบ้านสำเร็จ!</h1>
+            <p id="end-score" class="text-2xl text-gray-700 mb-6">เก็บแครอทได้: 0/10</p>
+            <button type="button" onclick="location.reload()" class="btn-squash bg-orange-500 text-white font-bold text-xl py-3 px-8 rounded-xl shadow-lg border-b-4 border-orange-700">เล่นอีกครั้ง</button>
+        </div>
+    </div>
+
+<script>
+// --- 1. GAME CONFIG & QUESTIONS ---
+const GAME_CONFIG = {
+    gravity: 0.6, fallMultiplier: 1.5, jumpVelocity: -14, speed: 5.5,
+    coyoteTimeMax: 8, jumpBufferMax: 10, totalItems: 10
+};
+
+const trigQuestions = [
+    { q: "sin(30°) มีค่าเท่ากับข้อใด?", choices: ["1/2", "√3/2", "1"], a: 0, exp: "sin(30°) = 1/2 เสมอ" },
+    { q: "cos(60°) มีค่าเท่ากับข้อใด?", choices: ["√2/2", "1/2", "0"], a: 1, exp: "cos(60°) มีค่าเท่ากับ sin(30°) คือ 1/2" },
+    { q: "tan(45°) มีค่าเท่ากับข้อใด?", choices: ["1", "√3", "หาค่าไม่ได้"], a: 0, exp: "tan(45°) = sin(45°)/cos(45°) = 1" },
+    { q: "sin²θ + cos²θ เท่ากับเท่าใด?", choices: ["0", "-1", "1"], a: 2, exp: "จากเอกลักษณ์ตรีโกณมิติพื้นฐาน sin²θ + cos²θ = 1 เสมอ" },
+    { q: "sec(θ) คือส่วนกลับของฟังก์ชันใด?", choices: ["sin(θ)", "cos(θ)", "tan(θ)"], a: 1, exp: "sec(θ) = 1/cos(θ)" },
+    { q: "sin(90°) มีค่าเท่ากับข้อใด?", choices: ["0", "1", "-1"], a: 1, exp: "ค่า sin(90°) จุดสูงสุดบนวงกลมหนึ่งหน่วย คือ 1" },
+    { q: "tan(θ) สามารถเขียนในรูปใดได้?", choices: ["sin(θ)/cos(θ)", "cos(θ)/sin(θ)", "1/sin(θ)"], a: 0, exp: "tan(θ) คืออัตราส่วนระหว่าง sin(θ) และ cos(θ)" },
+    { q: "สามเหลี่ยมมุมฉาก มีข้าม=3, ชิด=4 ด้านฉากยาวเท่าใด?", choices: ["5", "6", "7"], a: 0, exp: "ตามทฤษฎีบทพีทาโกรัส 3² + 4² = 5²" },
+    { q: "cos(0°) มีค่าเท่ากับข้อใด?", choices: ["0", "1", "หาค่าไม่ได้"], a: 1, exp: "บนวงกลมหนึ่งหน่วยที่มุม 0° ค่า x(cos) คือ 1" },
+    { q: "มุม π/2 เรเดียน มีขนาดกี่องศา?", choices: ["45°", "90°", "180°"], a: 1, exp: "π เรเดียน = 180° ดังนั้น π/2 = 90°" }
+];
+
+let canvas, ctx, audioCtx, width, height;
+let gameState = 'START', cameraX = 0, levelWidth = 0, currentQuestionIndex = 0;
+let platforms = [], items = [], particles = [], decorations = [], flyingCreatures = [];
+let keys = { ArrowLeft: false, ArrowRight: false, ArrowUp: false, Space: false };
+
+let player = {
+    x: 100, y: 0, width: 45, height: 45, vx: 0, vy: 0, hp: 3, score: 0,
+    avatar: '🐰', name: 'กระต่ายน้อย', onGround: false, coyoteTimer: 0, jumpBuffer: 0,
+    scaleX: 1, scaleY: 1, lastSafeX: 100, lastSafeY: 0
+};
+
+// รายการของตกแต่งน่ารักๆ บนพื้นดิน
+const cuteDecors = ['🍄', '🌼', '🌷', '🍓', '🐥', '🌻', '🌳', '🪴'];
+// รายการสิ่งมีชีวิตบินได้ในฉากหลัง
+const flyingIcons = ['🦋', '🐝', '🕊️'];
+
+window.onload = function() {
+    canvas = document.getElementById('gameCanvas');
+    if(!canvas) return;
+    ctx = canvas.getContext('2d');
+    
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    generateLevel();
+    
+    setupTouch('btn-left', 'ArrowLeft'); 
+    setupTouch('btn-right', 'ArrowRight'); 
+    setupTouch('btn-jump', 'ArrowUp');
+    
+    requestAnimationFrame(gameLoop);
+};
+
+function resizeCanvas() {
+    width = window.innerWidth; height = window.innerHeight;
+    canvas.width = width; canvas.height = height;
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        document.getElementById('touch-left-panel').style.display = 'flex';
+        document.getElementById('touch-right-panel').style.display = 'flex';
+    }
+}
+
+function generateLevel() {
+    platforms = []; items = []; decorations = []; flyingCreatures = [];
+    let curX = 0, baseY = height * 0.7;
+
+    // สร้างผีเสื้อ/ผึ้ง/นก บินในฉากหลัง
+    for(let i=0; i<15; i++) {
+        flyingCreatures.push({
+            x: Math.random() * 4000,
+            y: Math.random() * (height * 0.5) + 50,
+            speed: (Math.random() * 1.5 + 0.5) * (Math.random() > 0.5 ? 1 : -1),
+            bobSpeed: Math.random() * 0.1 + 0.05,
+            phase: Math.random() * Math.PI * 2,
+            type: flyingIcons[Math.floor(Math.random() * flyingIcons.length)]
+        });
+    }
+
+    platforms.push({ x: 0, y: baseY, w: 600, h: height });
+    player.y = baseY - 100; curX = 600;
+
+    for (let i = 0; i < GAME_CONFIG.totalItems; i++) {
+        let gap = Math.random() * 80 + 60;
+        curX += gap;
+        let pW = Math.random() * 250 + 200;
+        let pY = baseY + (Math.random() * 120 - 60);
+        pY = Math.max(height * 0.4, Math.min(height * 0.85, pY));
+        
+        platforms.push({ x: curX, y: pY, w: pW, h: height });
+        items.push({ x: curX + pW/2, y: pY - 55, active: true, qIdx: i });
+        
+        // วางของตกแต่งน่ารักๆ 1-3 ชิ้น บนแต่ละแท่นยืน
+        let numDecors = Math.floor(Math.random() * 3) + 1;
+        for(let j=0; j<numDecors; j++) {
+            let dx = curX + Math.random() * (pW - 60) + 30;
+            // ไม่ให้ของตกแต่งทับตำแหน่งแครอทตรงกลางเกินไป
+            if(Math.abs(dx - (curX + pW/2)) > 40) {
+                decorations.push({
+                    x: dx, 
+                    y: pY, 
+                    type: cuteDecors[Math.floor(Math.random() * cuteDecors.length)],
+                    size: Math.random() * 15 + 30 // สุ่มขนาดให้ดูมีมิติ
+                });
+            }
+        }
+        curX += pW;
+    }
+    platforms.push({ x: curX + 120, y: baseY, w: 800, h: height });
+    decorations.push({ x: curX + 450, y: baseY, type: '🏡', size: 80 });
+    levelWidth = curX + 850;
+}
+
+function drawBackground() {
+    if(!ctx) return;
+    // ท้องฟ้า
+    let grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, "#38BDF8"); grad.addColorStop(1, "#E0F2FE");
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, width, height);
+    
+    // พระอาทิตย์
+    ctx.fillStyle = "#FDE047";
+    ctx.beginPath(); ctx.arc(width - 150, 100, 60, 0, Math.PI*2); ctx.fill();
+
+    // ภูเขาในฉากหลัง (พารัลแลกซ์)
+    ctx.globalAlpha = 0.5;
+    for(let i=0; i<5; i++) {
+        let mx = (i * 600 - (cameraX * 0.15)) % (width + 600) - 300;
+        mx = (mx % (width + 600) + (width + 600)) % (width + 600) - 300;
+        ctx.fillStyle = "#86EFAC";
+        ctx.beginPath(); 
+        ctx.moveTo(mx, height); 
+        ctx.lineTo(mx + 300, height * 0.4); 
+        ctx.lineTo(mx + 600, height); 
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // ก้อนเมฆ
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    let time = Date.now() * 0.00003;
+    for(let i=0; i<4; i++) {
+        let cx = ((i * 500 + time * 1000) % (width + 400)) - 200 - (cameraX * 0.1);
+        cx = (cx % (width + 400) + (width + 400)) % (width + 400) - 200;
+        let cy = 80 + (i % 2) * 60;
+        ctx.beginPath(); ctx.arc(cx, cy, 40, 0, Math.PI*2);
+        ctx.arc(cx+35, cy-15, 50, 0, Math.PI*2); ctx.arc(cx+70, cy, 40, 0, Math.PI*2); ctx.fill();
+    }
+
+    // สิ่งมีชีวิตบินในฉากหลัง (ผีเสื้อ, ผึ้ง, นก)
+    ctx.save();
+    flyingCreatures.forEach(b => {
+        b.x += b.speed;
+        b.phase += b.bobSpeed;
+        
+        let relX = b.x - cameraX * 0.2;
+        if(relX > width + 200) b.x -= (width + 400);
+        if(relX < -200) b.x += (width + 400);
+        
+        let relY = b.y + Math.sin(b.phase) * 15;
+        
+        ctx.font = "30px Arial";
+        ctx.textAlign = "center";
+        // พลิกซ้ายขวาตามทิศทางการบิน
+        if(b.speed > 0) {
+            ctx.save();
+            ctx.translate(relX, relY);
+            ctx.scale(-1, 1);
+            ctx.fillText(b.type, 0, 0);
+            ctx.restore();
+        } else {
+            ctx.fillText(b.type, relX, relY);
+        }
+    });
+    ctx.restore();
+}
+
+function draw() {
+    if(!ctx) return;
+    ctx.save(); ctx.translate(-cameraX, 0);
+    
+    // แท่นยืน
+    platforms.forEach(p => {
+        ctx.fillStyle = "#8B4513"; ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.fillStyle = "#22C55E"; ctx.fillRect(p.x, p.y, p.w, 15);
+        ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(p.x, p.y+15, p.w, 5);
+    });
+
+    // ของตกแต่งน่ารักๆ ตามพื้น
+    decorations.forEach(d => {
+        ctx.font = d.size + "px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(d.type, d.x, d.y + 5);
+    });
+
+    // แครอทสีสดใส พร้อมแสงเรืองรองสีขาวใหญ่ๆ
+    items.forEach(m => {
+        if (m.active) {
+            let bob = Math.sin(Date.now() * 0.005 + m.qIdx) * 10;
+            ctx.save();
+            ctx.translate(m.x, m.y + bob - 10);
+            
+            // แสงสีขาวรอบๆ แครอท
+            ctx.shadowColor = "#FFFFFF";
+            ctx.shadowBlur = 50;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.beginPath();
+            ctx.arc(0, 0, 35, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // แสงชั้นที่ 2 ให้ฟุ้งสว่างมาก
+            ctx.shadowBlur = 80;
+            ctx.fill();
+
+            // วาดแครอท
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = "rgba(0,0,0,0.3)";
+            ctx.font = "65px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("🥕", 0, 0);
+            
+            ctx.restore();
+        }
+    });
+
+    particles.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+        if(p.life <= 0) particles.splice(i, 1);
+        else { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size || 4, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; }
+    });
+
+    // ผู้เล่น
+    ctx.globalAlpha = 1; ctx.fillStyle = "#000";
+    ctx.translate(player.x + player.width/2, player.y + player.height/2);
+    ctx.scale(player.scaleX, player.scaleY);
+    ctx.font = "45px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(player.avatar, 0, 0);
+    
+    // ชื่อผู้เล่น
+    ctx.scale(1/player.scaleX, 1/player.scaleY); 
+    ctx.font = "14px Mali"; ctx.fillStyle = "#C2410C"; ctx.strokeStyle = "white"; ctx.lineWidth = 3;
+    ctx.strokeText(player.name, 0, -35); ctx.fillText(player.name, 0, -35);
+    ctx.restore();
+}
+
+function updatePhysics() {
+    if (gameState !== 'PLAY') return;
+
+    if (keys.ArrowLeft) player.vx = -GAME_CONFIG.speed;
+    else if (keys.ArrowRight) player.vx = GAME_CONFIG.speed;
+    else player.vx *= 0.82;
+
+    player.vy += player.vy > 0 ? GAME_CONFIG.gravity * GAME_CONFIG.fallMultiplier : GAME_CONFIG.gravity;
+    player.x += player.vx; player.y += player.vy;
+    if (player.x < 0) player.x = 0;
+
+    player.onGround = false;
+    platforms.forEach(p => {
+        if (player.x + player.width > p.x && player.x < p.x + p.w && player.y + player.height > p.y && player.y + player.height < p.y + 25 && player.vy >= 0) {
+            player.y = p.y - player.height; player.vy = 0; player.onGround = true;
+            player.lastSafeX = player.x; player.lastSafeY = player.y;
+            if(Math.abs(player.vx) > 1 && Math.random() > 0.7) spawnParticles(player.x + player.width/2, p.y, "#8B4513", 1, 3);
+        }
+    });
+
+    if (player.onGround) player.coyoteTimer = GAME_CONFIG.coyoteTimeMax; else player.coyoteTimer--;
+    player.jumpBuffer--;
+
+    if (player.jumpBuffer > 0 && player.coyoteTimer > 0) {
+        player.vy = GAME_CONFIG.jumpVelocity; player.jumpBuffer = 0; player.coyoteTimer = 0;
+        player.scaleX = 0.75; player.scaleY = 1.25; playSound('jump');
+    }
+
+    player.scaleX += (1 - player.scaleX) * 0.12; player.scaleY += (1 - player.scaleY) * 0.12;
+
+    let targetCam = player.x - width/2 + 100;
+    cameraX += (Math.max(0, Math.min(levelWidth - width, targetCam)) - cameraX) * 0.1;
+
+    if (player.y > height + 100) { 
+        playSound('damage'); player.hp--; 
+        spawnParticles(player.lastSafeX, player.lastSafeY, "red", 15, 5);
+        player.x = player.lastSafeX; player.y = player.lastSafeY; 
+        if(player.hp <= 0) endGame(false); 
+    }
+
+    items.forEach(m => {
+        if (m.active && Math.abs((player.x+player.width/2) - m.x) < 50 && Math.abs((player.y+player.height/2) - m.y) < 55) {
+            m.active = false; triggerQuiz(m.qIdx);
+        }
+    });
+
+    if (player.x > levelWidth - 400) endGame(true);
+    
+    document.getElementById('hud-hp').innerText = '❤️'.repeat(player.hp) + '🖤'.repeat(3 - player.hp);
+    document.getElementById('hud-score').innerText = `⭐ ${player.score}/${GAME_CONFIG.totalItems}`;
+    document.getElementById('progress-indicator').style.left = `${(player.x/(levelWidth-400))*100}%`;
+}
+
+function playSound(t) {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    let osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.connect(g); g.connect(audioCtx.destination);
+    let n = audioCtx.currentTime;
+    if (t === 'jump') { osc.frequency.setValueAtTime(350, n); osc.frequency.exponentialRampToValueAtTime(700, n+0.1); g.gain.setValueAtTime(0.1, n); osc.start(); osc.stop(n+0.1); }
+    if (t === 'correct') { osc.frequency.setValueAtTime(523, n); osc.frequency.setValueAtTime(659, n+0.1); g.gain.setValueAtTime(0.1, n); osc.start(); osc.stop(n+0.2); }
+    if (t === 'damage') { osc.type='sawtooth'; osc.frequency.setValueAtTime(120, n); g.gain.setValueAtTime(0.1, n); osc.start(); osc.stop(n+0.2); }
+}
+
+function triggerQuiz(idx) {
+    gameState = 'QUIZ'; keys.ArrowLeft = keys.ArrowRight = false;
+    let q = trigQuestions[idx];
+    document.getElementById('question-text').innerText = q.q;
+    let cont = document.getElementById('choices-container'); cont.innerHTML = '';
+    q.choices.forEach((c, i) => {
+        let b = document.createElement('button'); b.className = 'quiz-choice'; b.innerText = c;
+        b.onclick = () => {
+            let btns = document.querySelectorAll('.quiz-choice'); btns.forEach(x=>x.disabled=true);
+            let banner = document.getElementById('explanation-banner'); banner.classList.remove('hidden');
+            banner.innerText = q.exp;
+            if(i === q.a) { 
+                b.classList.add('correct'); playSound('correct'); player.score++; 
+                banner.className='mt-4 p-3 rounded-lg bg-green-500 text-white font-bold'; 
+                spawnParticles(player.x, player.y, "orange", 20, 4);
+            } else { 
+                b.classList.add('wrong'); btns[q.a].classList.add('correct'); playSound('damage'); 
+                banner.className='mt-4 p-3 rounded-lg bg-red-500 text-white font-bold'; 
+            }
+            setTimeout(() => { document.getElementById('quiz-screen').style.display = 'none'; gameState = 'PLAY'; }, 2500);
+        };
+        cont.appendChild(b);
+    });
+    document.getElementById('explanation-banner').classList.add('hidden');
+    document.getElementById('quiz-screen').style.display = 'flex';
+}
+
+function spawnParticles(x, y, color, count, size) {
+    for(let i=0; i<count; i++) {
+        particles.push({x: x, y: y, vx: (Math.random()-0.5)*8, vy: (Math.random()-1)*8, life: 1, color: color, size: size});
+    }
+}
+
+function endGame(win) {
+    gameState = 'END';
+    document.getElementById('end-title').innerText = win ? "เข้าบ้านสำเร็จ! 🏡" : "หมดแรงซะแล้ว!";
+    document.getElementById('end-title').className = win ? "text-4xl font-bold mb-4 text-green-500" : "text-4xl font-bold mb-4 text-red-500";
+    document.getElementById('end-score').innerText = `เก็บแครอทไปได้: ${player.score}/${GAME_CONFIG.totalItems}`;
+    document.getElementById('game-over-screen').style.display = 'flex';
+}
+
+window.selectAvatar = function(a, btn) { 
+    document.querySelectorAll('.avatar-btn').forEach(x=>x.classList.remove('selected')); 
+    btn.classList.add('selected'); player.avatar = a; 
+    document.getElementById('progress-indicator').innerText = a; 
+}
+
+window.startGame = function() { 
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume(); 
+    player.name = document.getElementById('player-name').value; 
+    document.getElementById('hud-name').innerText = player.name; 
+    document.getElementById('start-screen').style.display = 'none'; 
+    gameState = 'PLAY'; 
+};
+
+// ควบคุมการสั่งงานคีย์บอร์ดแบบฝัง
+window.onkeydown = e => { if(keys.hasOwnProperty(e.code)) { keys[e.code] = true; if(e.code==='Space'||e.code==='ArrowUp') player.jumpBuffer = 10; } };
+window.onkeyup = e => { if(keys.hasOwnProperty(e.code)) keys[e.code] = false; };
+document.getElementById('player-name').onkeydown = e => e.stopPropagation();
+
+function setupTouch(id, k) { 
+    let b = document.getElementById(id);
+    if(!b) return;
+    b.onpointerdown = e => { e.preventDefault(); keys[k] = true; if(k==='ArrowUp') player.jumpBuffer = 10; };
+    b.onpointerup = e => { e.preventDefault(); keys[k] = false; };
+    b.onpointercancel = e => { e.preventDefault(); keys[k] = false; };
+    b.onpointerleave = e => { e.preventDefault(); keys[k] = false; };
+}
+
+function gameLoop() { 
+    ctx.clearRect(0,0,width,height); 
+    drawBackground(); 
+    draw(); 
+    if(gameState === 'PLAY' || gameState === 'QUIZ') updatePhysics(); 
+    requestAnimationFrame(gameLoop); 
+}
+</script>
+</body>
+</html>
+
+```
